@@ -1,6 +1,6 @@
 ﻿namespace HVACSmartHomeController_Fall26
 {
-    partial class Form1
+    partial class HVACcontroller
     {
         /// <summary>
         ///  Required designer variable.

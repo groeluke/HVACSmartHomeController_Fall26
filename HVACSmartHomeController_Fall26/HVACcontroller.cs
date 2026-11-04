@@ -1,8 +1,8 @@
 namespace HVACSmartHomeController_Fall26
 {
-    public partial class Form1 : Form
+    public partial class HVACcontroller : Form
     {
-        public Form1()
+        public HVACcontroller()
         {
             InitializeComponent();
         }
