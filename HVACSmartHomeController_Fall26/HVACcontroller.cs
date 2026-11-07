@@ -19,5 +19,25 @@ namespace HVACSmartHomeController_Fall26
         {
 
         }
+
+        private void HighDownButton_Click(object sender, EventArgs e)
+        {
+
+        }
+
+        private void LowUpButton_Click(object sender, EventArgs e)
+        {
+
+        }
+
+        private void LowDownButton_Click(object sender, EventArgs e)
+        {
+
+        }
+
+        private void MainTimer_Tick(object sender, EventArgs e)
+        {
+
+        }
     }
 }

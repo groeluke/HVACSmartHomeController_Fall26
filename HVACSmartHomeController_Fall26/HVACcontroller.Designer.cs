@@ -60,16 +60,27 @@
             MainTimer = new System.Windows.Forms.Timer(components);
             MainToolTip = new ToolTip(components);
             FaultListBox = new ListBox();
+            TopMenuStrip = new MenuStrip();
+            FileMenuItem = new ToolStripMenuItem();
+            ExitMenuItem = new ToolStripMenuItem();
+            SettingsMenuItem = new ToolStripMenuItem();
+            SaveSettingsMenuItem = new ToolStripMenuItem();
+            CommSetupMenuItem = new ToolStripMenuItem();
+            PortToolStripComboBox = new ToolStripComboBox();
+            RescanPortsMenuItem = new ToolStripMenuItem();
             ((System.ComponentModel.ISupportInitialize)LogoPictureBox).BeginInit();
             IoGroupBox.SuspendLayout();
+            TopMenuStrip.SuspendLayout();
             SuspendLayout();
             // 
             // LogoPictureBox
             // 
             LogoPictureBox.Anchor = AnchorStyles.Top | AnchorStyles.Bottom | AnchorStyles.Left | AnchorStyles.Right;
-            LogoPictureBox.Location = new Point(12, 148);
+            LogoPictureBox.BackgroundImage = Properties.Resources.Bengal_Logo_Black;
+            LogoPictureBox.BackgroundImageLayout = ImageLayout.Stretch;
+            LogoPictureBox.Location = new Point(12, 37);
             LogoPictureBox.Name = "LogoPictureBox";
-            LogoPictureBox.Size = new Size(210, 150);
+            LogoPictureBox.Size = new Size(210, 196);
             LogoPictureBox.TabIndex = 0;
             LogoPictureBox.TabStop = false;
             // 
@@ -127,6 +138,7 @@
             HighDownButton.TabIndex = 6;
             HighDownButton.Text = "- High";
             HighDownButton.UseVisualStyleBackColor = true;
+            HighDownButton.Click += HighDownButton_Click;
             // 
             // LowUpButton
             // 
@@ -136,6 +148,7 @@
             LowUpButton.TabIndex = 7;
             LowUpButton.Text = "+ Low";
             LowUpButton.UseVisualStyleBackColor = true;
+            LowUpButton.Click += LowUpButton_Click;
             // 
             // LowDownButton
             // 
@@ -145,11 +158,12 @@
             LowDownButton.TabIndex = 8;
             LowDownButton.Text = "- Low";
             LowDownButton.UseVisualStyleBackColor = true;
+            LowDownButton.Click += LowDownButton_Click;
             // 
             // ModeLabel
             // 
             ModeLabel.AutoSize = true;
-            ModeLabel.Location = new Point(12, 9);
+            ModeLabel.Location = new Point(244, 157);
             ModeLabel.Name = "ModeLabel";
             ModeLabel.Size = new Size(105, 25);
             ModeLabel.TabIndex = 9;
@@ -158,7 +172,7 @@
             // FanModeLabel
             // 
             FanModeLabel.AutoSize = true;
-            FanModeLabel.Location = new Point(12, 34);
+            FanModeLabel.Location = new Point(244, 182);
             FanModeLabel.Name = "FanModeLabel";
             FanModeLabel.Size = new Size(137, 25);
             FanModeLabel.TabIndex = 10;
@@ -167,7 +181,7 @@
             // FanStatusLabel
             // 
             FanStatusLabel.AutoSize = true;
-            FanStatusLabel.Location = new Point(12, 59);
+            FanStatusLabel.Location = new Point(244, 207);
             FanStatusLabel.Name = "FanStatusLabel";
             FanStatusLabel.Size = new Size(138, 25);
             FanStatusLabel.TabIndex = 11;
@@ -176,7 +190,7 @@
             // FaultLabel
             // 
             FaultLabel.AutoSize = true;
-            FaultLabel.Location = new Point(12, 84);
+            FaultLabel.Location = new Point(244, 232);
             FaultLabel.Name = "FaultLabel";
             FaultLabel.Size = new Size(95, 25);
             FaultLabel.TabIndex = 12;
@@ -185,7 +199,7 @@
             // CommStatusLabel
             // 
             CommStatusLabel.AutoSize = true;
-            CommStatusLabel.Location = new Point(12, 109);
+            CommStatusLabel.Location = new Point(244, 257);
             CommStatusLabel.Name = "CommStatusLabel";
             CommStatusLabel.Size = new Size(165, 25);
             CommStatusLabel.TabIndex = 13;
@@ -206,17 +220,16 @@
             IoGroupBox.Controls.Add(Input3Label);
             IoGroupBox.Controls.Add(Input2Label);
             IoGroupBox.Controls.Add(Input1Label);
-            IoGroupBox.Location = new Point(537, 2);
+            IoGroupBox.Location = new Point(532, 36);
             IoGroupBox.Name = "IoGroupBox";
-            IoGroupBox.Size = new Size(262, 296);
+            IoGroupBox.Size = new Size(262, 278);
             IoGroupBox.TabIndex = 14;
             IoGroupBox.TabStop = false;
             IoGroupBox.Text = "Q board I/O";
             // 
             // PressureLabel
             // 
-            PressureLabel.AutoSize = true;
-            PressureLabel.Location = new Point(126, 82);
+            PressureLabel.Location = new Point(126, 74);
             PressureLabel.Name = "PressureLabel";
             PressureLabel.Size = new Size(78, 25);
             PressureLabel.TabIndex = 24;
@@ -224,8 +237,7 @@
             // 
             // InterlockLabel
             // 
-            InterlockLabel.AutoSize = true;
-            InterlockLabel.Location = new Point(126, 57);
+            InterlockLabel.Location = new Point(126, 49);
             InterlockLabel.Name = "InterlockLabel";
             InterlockLabel.Size = new Size(80, 25);
             InterlockLabel.TabIndex = 23;
@@ -233,8 +245,7 @@
             // 
             // UnitTempLabel
             // 
-            UnitTempLabel.AutoSize = true;
-            UnitTempLabel.Location = new Point(126, 32);
+            UnitTempLabel.Location = new Point(126, 24);
             UnitTempLabel.Name = "UnitTempLabel";
             UnitTempLabel.Size = new Size(92, 25);
             UnitTempLabel.TabIndex = 22;
@@ -242,8 +253,7 @@
             // 
             // Output5Label
             // 
-            Output5Label.AutoSize = true;
-            Output5Label.Location = new Point(6, 255);
+            Output5Label.Location = new Point(6, 247);
             Output5Label.Name = "Output5Label";
             Output5Label.Size = new Size(84, 25);
             Output5Label.TabIndex = 21;
@@ -251,8 +261,7 @@
             // 
             // Output4Label
             // 
-            Output4Label.AutoSize = true;
-            Output4Label.Location = new Point(6, 230);
+            Output4Label.Location = new Point(6, 222);
             Output4Label.Name = "Output4Label";
             Output4Label.Size = new Size(84, 25);
             Output4Label.TabIndex = 20;
@@ -260,8 +269,7 @@
             // 
             // Output3Label
             // 
-            Output3Label.AutoSize = true;
-            Output3Label.Location = new Point(6, 205);
+            Output3Label.Location = new Point(6, 197);
             Output3Label.Name = "Output3Label";
             Output3Label.Size = new Size(84, 25);
             Output3Label.TabIndex = 19;
@@ -269,8 +277,7 @@
             // 
             // Output2Label
             // 
-            Output2Label.AutoSize = true;
-            Output2Label.Location = new Point(6, 180);
+            Output2Label.Location = new Point(6, 172);
             Output2Label.Name = "Output2Label";
             Output2Label.Size = new Size(84, 25);
             Output2Label.TabIndex = 18;
@@ -278,8 +285,7 @@
             // 
             // Output1Label
             // 
-            Output1Label.AutoSize = true;
-            Output1Label.Location = new Point(6, 155);
+            Output1Label.Location = new Point(6, 147);
             Output1Label.Name = "Output1Label";
             Output1Label.Size = new Size(84, 25);
             Output1Label.TabIndex = 17;
@@ -287,8 +293,7 @@
             // 
             // Input5Label
             // 
-            Input5Label.AutoSize = true;
-            Input5Label.Location = new Point(6, 130);
+            Input5Label.Location = new Point(6, 122);
             Input5Label.Name = "Input5Label";
             Input5Label.Size = new Size(69, 25);
             Input5Label.TabIndex = 16;
@@ -296,8 +301,7 @@
             // 
             // Input4Label
             // 
-            Input4Label.AutoSize = true;
-            Input4Label.Location = new Point(6, 105);
+            Input4Label.Location = new Point(6, 97);
             Input4Label.Name = "Input4Label";
             Input4Label.Size = new Size(69, 25);
             Input4Label.TabIndex = 15;
@@ -305,8 +309,7 @@
             // 
             // Input3Label
             // 
-            Input3Label.AutoSize = true;
-            Input3Label.Location = new Point(6, 80);
+            Input3Label.Location = new Point(6, 72);
             Input3Label.Name = "Input3Label";
             Input3Label.Size = new Size(69, 25);
             Input3Label.TabIndex = 2;
@@ -314,8 +317,7 @@
             // 
             // Input2Label
             // 
-            Input2Label.AutoSize = true;
-            Input2Label.Location = new Point(6, 55);
+            Input2Label.Location = new Point(6, 47);
             Input2Label.Name = "Input2Label";
             Input2Label.Size = new Size(69, 25);
             Input2Label.TabIndex = 1;
@@ -323,8 +325,7 @@
             // 
             // Input1Label
             // 
-            Input1Label.AutoSize = true;
-            Input1Label.Location = new Point(6, 30);
+            Input1Label.Location = new Point(6, 22);
             Input1Label.Name = "Input1Label";
             Input1Label.Size = new Size(69, 25);
             Input1Label.TabIndex = 0;
@@ -332,20 +333,78 @@
             // 
             // MainTimer
             // 
+            MainTimer.Enabled = true;
             MainTimer.Interval = 250;
+            MainTimer.Tick += MainTimer_Tick;
             // 
             // FaultListBox
             // 
             FaultListBox.FormattingEnabled = true;
-            FaultListBox.Location = new Point(402, 334);
+            FaultListBox.Location = new Point(244, 332);
             FaultListBox.Name = "FaultListBox";
-            FaultListBox.Size = new Size(124, 104);
+            FaultListBox.Size = new Size(185, 104);
             FaultListBox.TabIndex = 15;
+            // 
+            // TopMenuStrip
+            // 
+            TopMenuStrip.BackColor = Color.OrangeRed;
+            TopMenuStrip.ImageScalingSize = new Size(24, 24);
+            TopMenuStrip.Items.AddRange(new ToolStripItem[] { FileMenuItem, SettingsMenuItem });
+            TopMenuStrip.Location = new Point(0, 0);
+            TopMenuStrip.Name = "TopMenuStrip";
+            TopMenuStrip.Size = new Size(800, 33);
+            TopMenuStrip.TabIndex = 16;
+            TopMenuStrip.Text = "menuStrip1";
+            // 
+            // FileMenuItem
+            // 
+            FileMenuItem.DropDownItems.AddRange(new ToolStripItem[] { ExitMenuItem });
+            FileMenuItem.Name = "FileMenuItem";
+            FileMenuItem.Size = new Size(54, 29);
+            FileMenuItem.Text = "File";
+            // 
+            // ExitMenuItem
+            // 
+            ExitMenuItem.Name = "ExitMenuItem";
+            ExitMenuItem.Size = new Size(270, 34);
+            ExitMenuItem.Text = "Exit";
+            // 
+            // SettingsMenuItem
+            // 
+            SettingsMenuItem.DropDownItems.AddRange(new ToolStripItem[] { SaveSettingsMenuItem, CommSetupMenuItem });
+            SettingsMenuItem.Name = "SettingsMenuItem";
+            SettingsMenuItem.Size = new Size(92, 29);
+            SettingsMenuItem.Text = "Settings";
+            // 
+            // SaveSettingsMenuItem
+            // 
+            SaveSettingsMenuItem.Name = "SaveSettingsMenuItem";
+            SaveSettingsMenuItem.Size = new Size(270, 34);
+            SaveSettingsMenuItem.Text = "Save Settings";
+            // 
+            // CommSetupMenuItem
+            // 
+            CommSetupMenuItem.DropDownItems.AddRange(new ToolStripItem[] { PortToolStripComboBox, RescanPortsMenuItem });
+            CommSetupMenuItem.Name = "CommSetupMenuItem";
+            CommSetupMenuItem.Size = new Size(270, 34);
+            CommSetupMenuItem.Text = "Comm Setup";
+            // 
+            // PortToolStripComboBox
+            // 
+            PortToolStripComboBox.Name = "PortToolStripComboBox";
+            PortToolStripComboBox.Size = new Size(121, 33);
+            // 
+            // RescanPortsMenuItem
+            // 
+            RescanPortsMenuItem.Name = "RescanPortsMenuItem";
+            RescanPortsMenuItem.Size = new Size(270, 34);
+            RescanPortsMenuItem.Text = "Rescan Ports";
             // 
             // HVACcontroller
             // 
             AutoScaleDimensions = new SizeF(10F, 25F);
             AutoScaleMode = AutoScaleMode.Font;
+            BackColor = SystemColors.ControlDarkDark;
             ClientSize = new Size(800, 450);
             Controls.Add(FaultListBox);
             Controls.Add(IoGroupBox);
@@ -363,11 +422,16 @@
             Controls.Add(CurrentTempLabel);
             Controls.Add(TimeLabel);
             Controls.Add(LogoPictureBox);
+            Controls.Add(TopMenuStrip);
+            FormBorderStyle = FormBorderStyle.FixedSingle;
+            MainMenuStrip = TopMenuStrip;
+            MaximizeBox = false;
             Name = "HVACcontroller";
-            Text = "Form1";
+            Text = "RCET HVAC Smart Home Controller";
             ((System.ComponentModel.ISupportInitialize)LogoPictureBox).EndInit();
             IoGroupBox.ResumeLayout(false);
-            IoGroupBox.PerformLayout();
+            TopMenuStrip.ResumeLayout(false);
+            TopMenuStrip.PerformLayout();
             ResumeLayout(false);
             PerformLayout();
         }
@@ -405,5 +469,13 @@
         private System.Windows.Forms.Timer MainTimer;
         private ToolTip MainToolTip;
         private ListBox FaultListBox;
+        private MenuStrip TopMenuStrip;
+        private ToolStripMenuItem FileMenuItem;
+        private ToolStripMenuItem ExitMenuItem;
+        private ToolStripMenuItem SettingsMenuItem;
+        private ToolStripMenuItem SaveSettingsMenuItem;
+        private ToolStripMenuItem CommSetupMenuItem;
+        private ToolStripComboBox PortToolStripComboBox;
+        private ToolStripMenuItem RescanPortsMenuItem;
     }
 }
