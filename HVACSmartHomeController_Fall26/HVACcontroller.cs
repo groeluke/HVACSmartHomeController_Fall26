@@ -7,6 +7,10 @@
 */
 
 using System.IO.Ports;
+using System;
+using System.Drawing;
+using System.IO;
+using System.Windows.Forms;
 namespace HVACSmartHomeController_Fall26
 {
     public partial class HVACcontroller : Form
@@ -38,7 +42,7 @@ namespace HVACSmartHomeController_Fall26
             PortToolStripComboBox.DropDownStyle = ComboBoxStyle.DropDownList;
             LoadPortList();
 
-            // menu events (the button and timer events are already wired in the designer)
+            // wire the menu events
             ExitMenuItem.Click += ExitMenuItem_Click;
             SaveSettingsMenuItem.Click += SaveSettingsMenuItem_Click;
             RescanPortsMenuItem.Click += RescanPortsMenuItem_Click;
@@ -53,14 +57,12 @@ namespace HVACSmartHomeController_Fall26
 
         void ISUTheme()
         {
-            BackColor = IsuColors.GrowlGreyLight;     // light background so the black logo shows
-            ForeColor = IsuColors.BengalBlack;        // text color for every label
+            BackColor = IsuColors.GrowlGreyLight;
+            ForeColor = IsuColors.BengalBlack;
 
-            // menu bar
             TopMenuStrip.BackColor = IsuColors.Roarange;
             TopMenuStrip.ForeColor = IsuColors.BengalBlack;
 
-            // the four setpoint buttons: flat orange blocks with black text
             Button[] buttons = { HighUpButton, HighDownButton, LowUpButton, LowDownButton };
             foreach (Button button in buttons)
             {
@@ -70,7 +72,6 @@ namespace HVACSmartHomeController_Fall26
                 button.ForeColor = IsuColors.BengalBlack;
             }
 
-            // fault list
             FaultListBox.BackColor = IsuColors.GrowlGreyMed;
             FaultListBox.ForeColor = IsuColors.BengalBlack;
             FaultListBox.BorderStyle = BorderStyle.None;
@@ -95,7 +96,7 @@ namespace HVACSmartHomeController_Fall26
         void ShowSetpoints()
         {
             HighSetpointLabel.Text = "Cool to " + HvacSettings.HighSetpoint.ToString("F1") + " °F";
-            LowSetpointLabel.Text = "Heat to " +  HvacSettings.LowSetpoint.ToString("F1") + " °F";
+            LowSetpointLabel.Text = "Heat to " + HvacSettings.LowSetpoint.ToString("F1") + " °F";
         }
 
         void ShowCommStatus(string text, bool ok)
@@ -238,6 +239,7 @@ namespace HVACSmartHomeController_Fall26
         // Turns a label orange when the signal is HIGH, grey when LOW
         void SetIndicator(Label label, bool on)
         {
+            if (label == null) return;
             label.BackColor = on ? IsuColors.Roarange : IsuColors.GrowlGreyMed;
             label.ForeColor = IsuColors.BengalBlack;
         }
@@ -305,18 +307,171 @@ namespace HVACSmartHomeController_Fall26
             LoadPortList();
         }
 
-        private void PortToolStripComboBox_Click(object sender, EventArgs e)
+        private void PortToolStripComboBox_SelectedIndexChanged(object sender, EventArgs e)
         {
-            // user picked a different port from the menu
             if (PortToolStripComboBox.SelectedItem == null) return;
 
             string chosen = PortToolStripComboBox.SelectedItem.ToString();
-            if (chosen == verifiedPort) return;   // already using it
+            if (chosen == board.PortName) return;   // already using this port
 
             board.Disconnect();
             boardConnected = false;
             HvacSettings.PortName = chosen;
-            nextConnectTry = DateTime.Now;        // try the new port right away
+            nextConnectTry = DateTime.Now;          // try the new port right away
+        }
+
+        // Helper classes 
+
+        public static class IsuColors
+        {
+            public static Color GrowlGreyLight = Color.FromArgb(230, 231, 232);
+            public static Color GrowlGreyMed = Color.FromArgb(167, 167, 167);
+            public static Color GrowlGrey = Color.FromArgb(130, 130, 130);
+            public static Color Roarange = Color.FromArgb(244, 121, 32);
+            public static Color RoarangeL = Color.FromArgb(246, 146, 64);
+            public static Color BengalBlack = Color.FromArgb(0, 0, 0);
+        }
+
+        public static class HvacSettings
+        {
+            public static string PortName = "COM6";
+            public static double HighSetpoint = 75.0;
+            public static double LowSetpoint = 68.0;
+
+            const string FileName = "HVAC Settings.txt";
+
+            public static bool Load()
+            {
+                try
+                {
+                    if (!File.Exists(FileName)) return false;
+                    foreach (string line in File.ReadAllLines(FileName))
+                    {
+                        if (line.StartsWith("Port=")) PortName = line.Substring(5).Trim();
+                        if (line.StartsWith("High=")) HighSetpoint = double.Parse(line.Substring(5));
+                        if (line.StartsWith("Low=")) LowSetpoint = double.Parse(line.Substring(4));
+                    }
+                    return true;
+                }
+                catch { return false; }
+            }
+
+            public static bool Save()
+            {
+                try
+                {
+                    File.WriteAllLines(FileName, new[]
+                    {
+                    "Port=" + PortName,
+                    "High=" + HighSetpoint.ToString("F1"),
+                    "Low="  + LowSetpoint.ToString("F1")
+                });
+                    return true;
+                }
+                catch { return false; }
+            }
+        }
+
+        public static class ErrorLog
+        {
+            public static void Write(string description)
+            {
+                try
+                {
+                    string fileName = "HVACSystem-" + DateTime.Now.ToString("yyMMdd") + ".log";
+                    string line = DateTime.Now.ToString("yyMMdd-HHmmss") + ": " + description;
+                    File.AppendAllText(fileName, line + Environment.NewLine);
+                }
+                catch { }
+            }
+        }
+
+        public static class Hvac
+        {
+            public const double SetpointStep = 0.5;
+
+            public static double AdcToFahrenheit(int adc)
+            {
+                return 40.0 + (adc * 60.0 / 1023.0);
+            }
+
+            public static double ClampSetpoint(double value)
+            {
+                if (value < 50) return 50;
+                if (value > 90) return 90;
+                return value;
+            }
+        }
+
+        public static class IoMap
+        {
+            public const int InterlockInput = 1;
+            public const int HeatInput = 2;
+            public const int FanInput = 3;
+            public const int PressureInput = 4;
+            public const int CoolInput = 5;
+        }
+
+        public class BoardReading
+        {
+            public int Analog1;
+            public int Analog2;
+            public byte DigitalInputs;
+        }
+
+        public class QyAtBoard
+        {
+            SerialPort port = new SerialPort();
+            public string PortName => port.PortName;
+            public bool IsConnected => port.IsOpen;
+
+            public bool Connect(string preferredPort)
+            {
+                string[] ports = SerialPort.GetPortNames();
+                if (!string.IsNullOrEmpty(preferredPort) && TryOpen(preferredPort))
+                    return true;
+
+                foreach (string name in ports)
+                {
+                    if (name == preferredPort) continue;
+                    if (TryOpen(name)) return true;
+                }
+                return false;
+            }
+
+            bool TryOpen(string name)
+            {
+                try
+                {
+                    if (port.IsOpen) port.Close();
+                    port.PortName = name;
+                    port.BaudRate = 9600;
+                    port.Open();
+                    return true;
+                }
+                catch { return false; }
+            }
+
+            public void Disconnect()
+            {
+                try { if (port.IsOpen) port.Close(); } catch { }
+            }
+
+            public BoardReading ReadInputs()
+            {
+                // dummy data so the form runs – replace later with real serial commands
+                return new BoardReading
+                {
+                    Analog1 = 512,
+                    Analog2 = 520,
+                    DigitalInputs = 0x00
+                };
+            }
+
+            public static bool IsHigh(byte inputs, int bitNumber)
+            {
+                return (inputs & (1 << (bitNumber - 1))) != 0;
+            }
         }
     }
 }
