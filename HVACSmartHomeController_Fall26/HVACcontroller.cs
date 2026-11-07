@@ -5,8 +5,8 @@
 *Advanced Programming Techniques & GUI Development
 *https://github.com/groeluke/HVACSmartHomeController_Fall26.git
 */
+
 using System.IO.Ports;
-using System.Security.Cryptography;
 namespace HVACSmartHomeController_Fall26
 {
     public partial class HVACcontroller : Form
@@ -21,6 +21,7 @@ namespace HVACSmartHomeController_Fall26
         {
             InitializeComponent();
             SetDefaults();
+            ISUTheme();
         }
 
         void SetDefaults()
@@ -50,6 +51,31 @@ namespace HVACSmartHomeController_Fall26
             ShowCommStatus("Searching for QY@ board...", false);
         }
 
+        void ISUTheme()
+        {
+            BackColor = IsuColors.GrowlGreyLight;     // light background so the black logo shows
+            ForeColor = IsuColors.BengalBlack;        // text color for every label
+
+            // menu bar
+            TopMenuStrip.BackColor = IsuColors.Roarange;
+            TopMenuStrip.ForeColor = IsuColors.BengalBlack;
+
+            // the four setpoint buttons: flat orange blocks with black text
+            Button[] buttons = { HighUpButton, HighDownButton, LowUpButton, LowDownButton };
+            foreach (Button button in buttons)
+            {
+                button.FlatStyle = FlatStyle.Flat;
+                button.FlatAppearance.BorderSize = 0;
+                button.BackColor = IsuColors.Roarange;
+                button.ForeColor = IsuColors.BengalBlack;
+            }
+
+            // fault list
+            FaultListBox.BackColor = IsuColors.GrowlGreyMed;
+            FaultListBox.ForeColor = IsuColors.BengalBlack;
+            FaultListBox.BorderStyle = BorderStyle.None;
+        }
+
         // Fills the menu's combo box with the COM ports Windows lists right now.
         void LoadPortList()
         {
@@ -68,8 +94,8 @@ namespace HVACSmartHomeController_Fall26
         }
         void ShowSetpoints()
         {
-            HighSetpointLabel.Text = "Cool to" HvacSettings.HighSetpoint.ToString("F1");
-            LowSetpointLabel.Text = "Heat to" HvacSettings.LowSetpoint.ToString("F1");
+            HighSetpointLabel.Text = "Cool to " + HvacSettings.HighSetpoint.ToString("F1") + " °F";
+            LowSetpointLabel.Text = "Heat to " +  HvacSettings.LowSetpoint.ToString("F1") + " °F";
         }
 
         void ShowCommStatus(string text, bool ok)
@@ -209,31 +235,56 @@ namespace HVACSmartHomeController_Fall26
             ShowSetpoints();
         }
 
+        // Turns a label orange when the signal is HIGH, grey when LOW
+        void SetIndicator(Label label, bool on)
+        {
+            label.BackColor = on ? IsuColors.Roarange : IsuColors.GrowlGreyMed;
+            label.ForeColor = IsuColors.BengalBlack;
+        }
+
+        // Shows or hides the fault indicator
+        void ShowFaultState(bool hasFault)
+        {
+            FaultLabel.Text = hasFault ? "FAULT" : "OK";
+            SetIndicator(FaultLabel, hasFault);
+        }
 
         //Event handles below**************************************************
         private void HighUpButton_Click(object sender, EventArgs e)
         {
-            ChangeHighSetpoint(-HVAC.SetpointStep);
+            ChangeHighSetpoint(+Hvac.SetpointStep);
         }
 
         private void HighDownButton_Click(object sender, EventArgs e)
         {
-
+            ChangeHighSetpoint(-Hvac.SetpointStep);
         }
+
 
         private void LowUpButton_Click(object sender, EventArgs e)
         {
-
+            ChangeLowSetpoint(+Hvac.SetpointStep);
         }
 
         private void LowDownButton_Click(object sender, EventArgs e)
         {
-
+            ChangeLowSetpoint(-Hvac.SetpointStep);
         }
 
         private void MainTimer_Tick(object sender, EventArgs e)
         {
+            // update the clock every tick
+            TimeLabel.Text = DateTime.Now.ToString("hh:mm tt");
 
+            if (boardConnected)
+            {
+                ReadBoard();                 // read sensors + update labels
+                                             // later we will add the control logic here
+            }
+            else if (DateTime.Now >= nextConnectTry)
+            {
+                ConnectToBoard();            // try to find the board again
+            }
         }
 
         private void ExitMenuItem_Click(object sender, EventArgs e)
@@ -243,17 +294,29 @@ namespace HVACSmartHomeController_Fall26
 
         private void SaveSettingsMenuItem_Click(object sender, EventArgs e)
         {
-
+            if (HvacSettings.Save())
+                MessageBox.Show("Settings saved.");
+            else
+                MessageBox.Show("Could not save settings.");
         }
 
         private void RescanPortsMenuItem_Click(object sender, EventArgs e)
         {
-
+            LoadPortList();
         }
 
         private void PortToolStripComboBox_Click(object sender, EventArgs e)
         {
+            // user picked a different port from the menu
+            if (PortToolStripComboBox.SelectedItem == null) return;
 
+            string chosen = PortToolStripComboBox.SelectedItem.ToString();
+            if (chosen == verifiedPort) return;   // already using it
+
+            board.Disconnect();
+            boardConnected = false;
+            HvacSettings.PortName = chosen;
+            nextConnectTry = DateTime.Now;        // try the new port right away
         }
     }
 }
