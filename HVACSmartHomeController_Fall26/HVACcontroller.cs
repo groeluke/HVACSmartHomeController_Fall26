@@ -6,6 +6,7 @@
 *https://github.com/groeluke/HVACSmartHomeController_Fall26.git
 */
 using System.IO.Ports;
+using System.Security.Cryptography;
 namespace HVACSmartHomeController_Fall26
 {
     public partial class HVACcontroller : Form
@@ -99,10 +100,120 @@ namespace HVACSmartHomeController_Fall26
             SetIndicator(FanStatusLabel, false);
         }
 
+        // Puts one reading from the board onto the form.
+        void ShowReading(BoardReading reading)
+        {
+            // temperatures
+            double homeTemp = Hvac.AdcToFahrenheit(reading.Analog1);
+            double unitTemp = Hvac.AdcToFahrenheit(reading.Analog2);
+            CurrentTempLabel.Text = homeTemp.ToString("F1") + " °F";
+            UnitTempLabel.Text = unitTemp.ToString("F1") + " °F";
+
+            // digital inputs: orange = HIGH
+            byte inputs = reading.DigitalInputs;
+            for (int i = 0; i < inputLabels.Length; i++)
+            {
+                SetIndicator(inputLabels[i], QyAtBoard.IsHigh(inputs, i + 1));
+            }
+            SetIndicator(InterlockLabel, QyAtBoard.IsHigh(inputs, IoMap.InterlockInput));
+            SetIndicator(PressureLabel, QyAtBoard.IsHigh(inputs, IoMap.PressureInput));
+
+            // mirror the physical switches
+            if (QyAtBoard.IsHigh(inputs, IoMap.HeatInput))
+            {
+                ModeLabel.Text = "Mode: HEAT";
+            }
+            else if (QyAtBoard.IsHigh(inputs, IoMap.CoolInput))
+            {
+                ModeLabel.Text = "Mode: COOL";
+            }
+            else
+            {
+                ModeLabel.Text = "Mode: OFF";
+            }
+            FanModeLabel.Text = QyAtBoard.IsHigh(inputs, IoMap.FanInput) ? "Fan mode: ON" : "Fan mode: AUTO";
+        }
+
+        // Adds a fault to the log file, the list box, and the fault indicator.
+        void ReportFault(string description)
+        {
+            ErrorLog.Write(description);
+            FaultListBox.Items.Add(DateTime.Now.ToString("HH:mm:ss") + "  " + description);
+            FaultListBox.TopIndex = FaultListBox.Items.Count - 1;
+            ShowFaultState(true);
+        }
+        // Searches every COM port for the QY board (the saved port is tried first).
+        void ConnectToBoard()
+        {
+            ShowCommStatus("Searching for QY@ board...", false);
+            CommStatusLabel.Refresh();     // show the text now, the search can take a moment
+
+            if (board.Connect(HvacSettings.PortName))
+            {
+                boardConnected = true;
+                commFaultLogged = false;
+                HvacSettings.PortName = board.PortName;
+                LoadPortList();
+                ShowCommStatus("QY@ connected on " + board.PortName, true);
+                ShowFaultState(false);
+            }
+            else
+            {
+                ConnectionFailed("QY@ board not found - Attempting reconnect");
+            }
+        }
+
+        // Reads the inputs once. Any problem means the connection was lost.
+        void ReadBoard()
+        {
+            try
+            {
+                if (!board.IsConnected)
+                {
+                    throw new IOException("The QY@ board was unplugged.");
+                }
+                ShowReading(board.ReadInputs());
+            }
+            catch (Exception)
+            {
+                ConnectionFailed("Communication lost with QY@ board - Attempting reconnect");
+            }
+        }
+
+        // Closes the port, shows the error, and schedules another search in 10 seconds.
+        void ConnectionFailed(string description)
+        {
+            boardConnected = false;
+            board.Disconnect();
+            nextConnectTry = DateTime.Now.AddSeconds(10);
+            ShowDisconnected();
+            ShowCommStatus("COMM ERROR - retrying every 10 s", false);
+
+            if (!commFaultLogged)          // only log the first failure, not every retry
+            {
+                ReportFault(description);
+                commFaultLogged = true;
+            }
+        }
+
+        // Setpoints
+        void ChangeHighSetpoint(double change)
+        {
+            HvacSettings.HighSetpoint = Hvac.ClampSetpoint(HvacSettings.HighSetpoint + change);
+            ShowSetpoints();
+        }
+
+        void ChangeLowSetpoint(double change)
+        {
+            HvacSettings.LowSetpoint = Hvac.ClampSetpoint(HvacSettings.LowSetpoint + change);
+            ShowSetpoints();
+        }
+
+
         //Event handles below**************************************************
         private void HighUpButton_Click(object sender, EventArgs e)
         {
-
+            ChangeHighSetpoint(-HVAC.SetpointStep);
         }
 
         private void HighDownButton_Click(object sender, EventArgs e)
@@ -121,6 +232,26 @@ namespace HVACSmartHomeController_Fall26
         }
 
         private void MainTimer_Tick(object sender, EventArgs e)
+        {
+
+        }
+
+        private void ExitMenuItem_Click(object sender, EventArgs e)
+        {
+            this.Close();
+        }
+
+        private void SaveSettingsMenuItem_Click(object sender, EventArgs e)
+        {
+
+        }
+
+        private void RescanPortsMenuItem_Click(object sender, EventArgs e)
+        {
+
+        }
+
+        private void PortToolStripComboBox_Click(object sender, EventArgs e)
         {
 
         }

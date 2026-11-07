@@ -368,6 +368,7 @@
             ExitMenuItem.Name = "ExitMenuItem";
             ExitMenuItem.Size = new Size(270, 34);
             ExitMenuItem.Text = "Exit";
+            ExitMenuItem.Click += ExitMenuItem_Click;
             // 
             // SettingsMenuItem
             // 
@@ -381,6 +382,7 @@
             SaveSettingsMenuItem.Name = "SaveSettingsMenuItem";
             SaveSettingsMenuItem.Size = new Size(270, 34);
             SaveSettingsMenuItem.Text = "Save Settings";
+            SaveSettingsMenuItem.Click += SaveSettingsMenuItem_Click;
             // 
             // CommSetupMenuItem
             // 
@@ -393,12 +395,14 @@
             // 
             PortToolStripComboBox.Name = "PortToolStripComboBox";
             PortToolStripComboBox.Size = new Size(121, 33);
+            PortToolStripComboBox.Click += PortToolStripComboBox_Click;
             // 
             // RescanPortsMenuItem
             // 
             RescanPortsMenuItem.Name = "RescanPortsMenuItem";
             RescanPortsMenuItem.Size = new Size(270, 34);
             RescanPortsMenuItem.Text = "Rescan Ports";
+            RescanPortsMenuItem.Click += RescanPortsMenuItem_Click;
             // 
             // HVACcontroller
             // 
