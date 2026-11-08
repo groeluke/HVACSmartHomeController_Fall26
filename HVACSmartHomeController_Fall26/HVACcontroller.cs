@@ -7,10 +7,6 @@
 */
 
 using System.IO.Ports;
-using System;
-using System.Drawing;
-using System.IO;
-using System.Windows.Forms;
 namespace HVACSmartHomeController_Fall26
 {
     public partial class HVACcontroller : Form
@@ -41,12 +37,6 @@ namespace HVACSmartHomeController_Fall26
             // list the COM ports in the menu (before hooking the event so it does not fire yet)
             PortToolStripComboBox.DropDownStyle = ComboBoxStyle.DropDownList;
             LoadPortList();
-
-            // wire the menu events
-            ExitMenuItem.Click += ExitMenuItem_Click;
-            SaveSettingsMenuItem.Click += SaveSettingsMenuItem_Click;
-            RescanPortsMenuItem.Click += RescanPortsMenuItem_Click;
-            PortToolStripComboBox.SelectedIndexChanged += PortToolStripComboBox_SelectedIndexChanged;
 
             TimeLabel.Text = DateTime.Now.ToString("hh:mm tt");
             ShowSetpoints();
@@ -110,8 +100,8 @@ namespace HVACSmartHomeController_Fall26
         {
             CurrentTempLabel.Text = "***°F";
             UnitTempLabel.Text = "***°F";
-            ModeLabel.Text = "Mode: ***°F";
-            FanModeLabel.Text = "Fan mode: ***°F";
+            ModeLabel.Text = "Mode: ***";
+            FanModeLabel.Text = "Fan mode: ***";
             FanStatusLabel.Text = "Fan: OFF";
             foreach (Label label in inputLabels)
             {
@@ -169,11 +159,12 @@ namespace HVACSmartHomeController_Fall26
             FaultListBox.TopIndex = FaultListBox.Items.Count - 1;
             ShowFaultState(true);
         }
+
         // Searches every COM port for the QY board (the saved port is tried first).
         void ConnectToBoard()
         {
             ShowCommStatus("Searching for QY@ board...", false);
-            CommStatusLabel.Refresh();     // show the text now, the search can take a moment
+            CommStatusLabel.Refresh(); // show the text now, the search can take a moment
 
             if (board.Connect(HvacSettings.PortName))
             {
@@ -216,7 +207,7 @@ namespace HVACSmartHomeController_Fall26
             ShowDisconnected();
             ShowCommStatus("COMM ERROR - retrying every 10 s", false);
 
-            if (!commFaultLogged)          // only log the first failure, not every retry
+            if (!commFaultLogged) // only log the first failure, not every retry
             {
                 ReportFault(description);
                 commFaultLogged = true;
@@ -280,12 +271,12 @@ namespace HVACSmartHomeController_Fall26
 
             if (boardConnected)
             {
-                ReadBoard();                 // read sensors + update labels
-                                             // later we will add the control logic here
+                ReadBoard(); // read sensors + update labels
+                             // later we will add the control logic here
             }
             else if (DateTime.Now >= nextConnectTry)
             {
-                ConnectToBoard();            // try to find the board again
+                ConnectToBoard(); // try to find the board again
             }
         }
 
@@ -311,16 +302,24 @@ namespace HVACSmartHomeController_Fall26
         {
             if (PortToolStripComboBox.SelectedItem == null) return;
 
-            string chosen = PortToolStripComboBox.SelectedItem.ToString();
-            if (chosen == board.PortName) return;   // already using this port
+            string chosen = PortToolStripComboBox.Text;
+            if (chosen == "" || (boardConnected && chosen == board.PortName)) return;
 
+            HvacSettings.PortName = chosen;
             board.Disconnect();
             boardConnected = false;
-            HvacSettings.PortName = chosen;
             nextConnectTry = DateTime.Now;          // try the new port right away
+            ShowDisconnected();                     // clear the old readings
         }
 
-        // Helper classes 
+        protected override void OnFormClosed(FormClosedEventArgs e)
+        {
+            MainTimer.Stop();
+            board.Disconnect();
+            base.OnFormClosed(e);
+        }
+
+        // Helper classes****************************************************** 
 
         public static class IsuColors
         {
@@ -338,22 +337,26 @@ namespace HVACSmartHomeController_Fall26
             public static double HighSetpoint = 75.0;
             public static double LowSetpoint = 68.0;
 
-            const string FileName = "HVAC Settings.txt";
+            const string FileName = "..\\..\\..\\HVAC Settings.txt";
 
             public static bool Load()
             {
                 try
                 {
-                    if (!File.Exists(FileName)) return false;
+                    if (!File.Exists(FileName)) return true;     // first run, nothing to load yet
+
                     foreach (string line in File.ReadAllLines(FileName))
                     {
                         if (line.StartsWith("Port=")) PortName = line.Substring(5).Trim();
-                        if (line.StartsWith("High=")) HighSetpoint = double.Parse(line.Substring(5));
-                        if (line.StartsWith("Low=")) LowSetpoint = double.Parse(line.Substring(4));
+                        if (line.StartsWith("High=")) HighSetpoint = Hvac.ClampSetpoint(double.Parse(line.Substring(5)));
+                        if (line.StartsWith("Low=")) LowSetpoint = Hvac.ClampSetpoint(double.Parse(line.Substring(4)));
                     }
-                    return true;
+                    return true;                                 // after the loop, once every line is read
                 }
-                catch { return false; }
+                catch
+                {
+                    return false;                                // a damaged file: keep the defaults
+                }
             }
 
             public static bool Save()
@@ -378,7 +381,7 @@ namespace HVACSmartHomeController_Fall26
             {
                 try
                 {
-                    string fileName = "HVACSystem-" + DateTime.Now.ToString("yyMMdd") + ".log";
+                    string fileName = "..\\..\\..\\HVACSystem-" + DateTime.Now.ToString("yyMMdd") + ".log";
                     string line = DateTime.Now.ToString("yyMMdd-HHmmss") + ": " + description;
                     File.AppendAllText(fileName, line + Environment.NewLine);
                 }
@@ -422,55 +425,155 @@ namespace HVACSmartHomeController_Fall26
         public class QyAtBoard
         {
             SerialPort port = new SerialPort();
-            public string PortName => port.PortName;
-            public bool IsConnected => port.IsOpen;
+            byte outputs = 0;                  // which digital outputs are on (bit 0 = Output 1)
 
+            // set to true if testing shows the outputs are backwards
+            public bool OutputsInverted = false;
+
+            public string PortName
+            {
+                get { return port.PortName; }
+            }
+
+            // open AND still listed by Windows, so unplugging is noticed
+            public bool IsConnected
+            {
+                get { return port.IsOpen && Array.IndexOf(SerialPort.GetPortNames(), port.PortName) >= 0; }
+            }
+
+            // Checks every COM port until the QY@ board answers (the saved port first).
             public bool Connect(string preferredPort)
             {
-                string[] ports = SerialPort.GetPortNames();
-                if (!string.IsNullOrEmpty(preferredPort) && TryOpen(preferredPort))
-                    return true;
-
+                Disconnect();
+                List<string> ports = new List<string>(SerialPort.GetPortNames());
+                if (preferredPort != "" && ports.Contains(preferredPort))
+                {
+                    ports.Remove(preferredPort);
+                    ports.Insert(0, preferredPort);
+                }
                 foreach (string name in ports)
                 {
-                    if (name == preferredPort) continue;
-                    if (TryOpen(name)) return true;
+                    if (TryPort(name))
+                    {
+                        return true;
+                    }
                 }
                 return false;
             }
 
-            bool TryOpen(string name)
+            // Opens one port and asks for the settings block. The board has "Qy@"
+            // (81, 121, 64) at bytes 58-60.
+            bool TryPort(string name)
             {
                 try
                 {
-                    if (port.IsOpen) port.Close();
                     port.PortName = name;
-                    port.BaudRate = 9600;
+                    port.BaudRate = 9600;                 // ignored by USB virtual COM ports
                     port.Open();
-                    return true;
+                    port.DiscardInBuffer();
+                    port.Write(new byte[] { 0xF0 }, 0, 1);    // read settings
+
+                    byte[] settings = ReadBytes(64, 300);
+                    if (settings[58] == 81 && settings[59] == 121 && settings[60] == 64)
+                    {
+                        outputs = 0;
+                        SendOutputs();                    // start with everything off
+                        return true;
+                    }
                 }
-                catch { return false; }
+                catch (Exception)
+                {
+                    // in use, not a board, no answer... this is not the one
+                }
+                Disconnect();
+                return false;
             }
 
             public void Disconnect()
             {
-                try { if (port.IsOpen) port.Close(); } catch { }
+                try
+                {
+                    if (port.IsOpen)
+                    {
+                        port.Close();
+                    }
+                }
+                catch (Exception)
+                {
+                    // the board may already be unplugged
+                }
             }
 
+            // Reads AN1, AN2 and the digital inputs in one transaction.
+            // Sends 0x53 (analog 1 and 2) then 0x30 (digital inputs).
+            // Reply: AN1 (2 bytes), AN2 (2 bytes), inputs (1 byte).
             public BoardReading ReadInputs()
             {
-                // dummy data so the form runs – replace later with real serial commands
-                return new BoardReading
+                Send(new byte[] { 0x53, 0x30 });
+                byte[] reply = ReadBytes(5, 300);
+
+                BoardReading reading = new BoardReading();
+                reading.Analog1 = (reply[0] << 2) | (reply[1] >> 6);
+                reading.Analog2 = (reply[2] << 2) | (reply[3] >> 6);
+                reading.DigitalInputs = reply[4];
+                return reading;
+            }
+
+            // Turns one digital output on or off (number 1 to 8).
+            public void SetOutput(int number, bool on)
+            {
+                byte mask = (byte)(1 << (number - 1));
+                byte newState = on ? (byte)(outputs | mask) : (byte)(outputs & ~mask);
+                if (newState == outputs)
                 {
-                    Analog1 = 512,
-                    Analog2 = 520,
-                    DigitalInputs = 0x00
-                };
+                    return;
+                }
+                outputs = newState;
+                SendOutputs();
+            }
+
+            public void AllOutputsOff()
+            {
+                outputs = 0;
+                SendOutputs();
             }
 
             public static bool IsHigh(byte inputs, int bitNumber)
             {
                 return (inputs & (1 << (bitNumber - 1))) != 0;
+            }
+
+            void SendOutputs()
+            {
+                byte data = OutputsInverted ? (byte)~outputs : outputs;
+                Send(new byte[] { 0x20, data });
+            }
+
+            void Send(byte[] data)
+            {
+                if (!port.IsOpen)
+                {
+                    throw new InvalidOperationException("Not connected to the QY@ board.");
+                }
+                port.DiscardInBuffer();                   // throw away old bytes so replies line up
+                port.Write(data, 0, data.Length);
+            }
+
+            // Waits until count bytes arrive (or the timeout passes), then reads them.
+            byte[] ReadBytes(int count, int timeoutMilliseconds)
+            {
+                DateTime deadline = DateTime.Now.AddMilliseconds(timeoutMilliseconds);
+                while (port.BytesToRead < count)
+                {
+                    if (DateTime.Now > deadline)
+                    {
+                        throw new TimeoutException("The QY@ board did not answer.");
+                    }
+                    System.Threading.Thread.Sleep(1);
+                }
+                byte[] data = new byte[count];
+                port.Read(data, 0, count);
+                return data;
             }
         }
     }
