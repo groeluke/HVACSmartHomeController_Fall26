@@ -16,6 +16,16 @@ namespace HVACSmartHomeController_Fall26
         bool commFaultLogged = false;
         DateTime nextConnectTry = DateTime.Now;
         Label[] inputLabels = new Label[5];
+        // control state (remembered between timer ticks)
+        bool wantHeat = false; // heating wanted (hysteresis state)
+        bool wantCool = false; // cooling wanted (hysteresis state)
+        bool heating = false; // heat output is on
+        bool cooling = false; // cool output is on
+        bool fanOn = false; // fan output is on
+        bool elementWasWanted = false; // was heat or cool wanted on the last tick
+        bool interlockFaultLogged = false; // so an open interlock is only logged once
+        DateTime fanOnSince = DateTime.Now; // when the fan last turned on
+        DateTime fanKeepUntil = DateTime.MinValue; // fan stays on until this time after heat/cool stops
 
         public HVACcontroller()
         {
@@ -190,7 +200,9 @@ namespace HVACSmartHomeController_Fall26
                 {
                     throw new IOException("The QY@ board was unplugged.");
                 }
-                ShowReading(board.ReadInputs());
+                BoardReading reading = board.ReadInputs();
+                ShowReading(reading);
+                RunControl(reading);
             }
             catch (Exception)
             {
@@ -201,6 +213,8 @@ namespace HVACSmartHomeController_Fall26
         // Closes the port, shows the error, and schedules another search in 10 seconds.
         void ConnectionFailed(string description)
         {
+            StopAll();
+            interlockFaultLogged = false;
             boardConnected = false;
             board.Disconnect();
             nextConnectTry = DateTime.Now.AddSeconds(10);
@@ -240,6 +254,135 @@ namespace HVACSmartHomeController_Fall26
         {
             FaultLabel.Text = hasFault ? "FAULT" : "OK";
             SetIndicator(FaultLabel, hasFault);
+        }
+
+        // Turns everything off in our memory (the outputs themselves are set in RunControl).
+        void StopAll()
+        {
+            wantHeat = false;
+            wantCool = false;
+            heating = false;
+            cooling = false;
+            fanOn = false;
+            elementWasWanted = false;
+            fanKeepUntil = DateTime.MinValue;
+        }
+
+        // Decides what the heater, cooler, and fan should do, then sets the board outputs.
+        void RunControl(BoardReading reading)
+        {
+            byte inputs = reading.DigitalInputs;
+            bool interlockOk = QyAtBoard.IsHigh(inputs, IoMap.InterlockInput);
+            bool heatEnabled = QyAtBoard.IsHigh(inputs, IoMap.HeatInput);
+            bool coolEnabled = QyAtBoard.IsHigh(inputs, IoMap.CoolInput);
+            bool fanOnlyMode = QyAtBoard.IsHigh(inputs, IoMap.FanInput);
+            // both heat and cool enabled at once is a wiring problem, so treat it as off
+            if (heatEnabled && coolEnabled)
+            {
+                heatEnabled = false;
+                coolEnabled = false;
+            }
+            double homeTemp = Hvac.AdcToFahrenheit(reading.Analog1);
+
+            if (!interlockOk)
+            {
+                // 1. safety interlock is open: everything off
+                StopAll();
+                if (!interlockFaultLogged)
+                {
+                    ReportFault("Safety interlock switch LOW - Heating/Cooling disabled");
+                    interlockFaultLogged = true;
+                }
+            }
+            else
+            {
+                interlockFaultLogged = false;
+
+                // 2. heat or cool wanted? (the in-between zone keeps the previous answer)
+                if (heatEnabled)
+                {
+                    wantCool = false;
+                    if (homeTemp < HvacSettings.LowSetpoint)
+                    {
+                        wantHeat = true;
+                    }
+                    else if (homeTemp >= HvacSettings.LowSetpoint + Hvac.Hysteresis)
+                    {
+                        wantHeat = false;
+                    }
+                }
+                else if (coolEnabled)
+                {
+                    wantHeat = false;
+                    if (homeTemp > HvacSettings.HighSetpoint)
+                    {
+                        wantCool = true;
+                    }
+                    else if (homeTemp <= HvacSettings.HighSetpoint - Hvac.Hysteresis)
+                    {
+                        wantCool = false;
+                    }
+                }
+                else
+                {
+                    wantHeat = false;
+                    wantCool = false;
+                }
+
+                // 3. the fan: on for heat/cool, and 5 seconds longer after they stop
+                bool elementWanted = wantHeat || wantCool;
+                if (elementWasWanted && !elementWanted)
+                {
+                    fanKeepUntil = DateTime.Now.AddSeconds(5);
+                }
+                elementWasWanted = elementWanted;
+
+                bool fanNeeded = fanOnlyMode || elementWanted || DateTime.Now < fanKeepUntil;
+                if (fanNeeded && !fanOn)
+                {
+                    fanOnSince = DateTime.Now; // remember when the fan started
+                }
+                fanOn = fanNeeded;
+
+                // 4. the heater or cooler only turns on after the fan has run for 5 seconds
+                bool fanReady = fanOn && (DateTime.Now - fanOnSince).TotalSeconds >= 5;
+                heating = wantHeat && fanReady;
+                cooling = wantCool && fanReady;
+            }
+
+            // 5. set the board outputs
+            board.SetOutput(IoMap.WarningOutput, !interlockOk);
+            board.SetOutput(IoMap.HeatOutput, heating);
+            board.SetOutput(IoMap.CoolOutput, cooling);
+            board.SetOutput(IoMap.FanOutput, fanOn);
+
+            // 6. show it on the form
+            SetIndicator(Output1Label, !interlockOk);
+            SetIndicator(Output2Label, heating);
+            SetIndicator(Output3Label, cooling);
+            SetIndicator(Output4Label, fanOn);
+            FanStatusLabel.Text = fanOn ? "Fan: ON" : "Fan: OFF";
+            SetIndicator(FanStatusLabel, fanOn);
+
+            string mode = heatEnabled ? "HEAT" : (coolEnabled ? "COOL" : "OFF");
+            if (!interlockOk)
+            {
+                ModeLabel.Text = "Mode: DISABLED";
+            }
+            else if (heating || cooling)
+            {
+                ModeLabel.Text = "Mode: " + mode + " - ON";
+            }
+            else if (mode != "OFF")
+            {
+                ModeLabel.Text = "Mode: " + mode + " - idle";
+            }
+            else
+            {
+                ModeLabel.Text = "Mode: OFF";
+            }
+            SetIndicator(ModeLabel, heating || cooling);
+            ShowFaultState(!interlockOk);
         }
 
         //Event handles below**************************************************
@@ -308,13 +451,24 @@ namespace HVACSmartHomeController_Fall26
             HvacSettings.PortName = chosen;
             board.Disconnect();
             boardConnected = false;
-            nextConnectTry = DateTime.Now;          // try the new port right away
-            ShowDisconnected();                     // clear the old readings
+            nextConnectTry = DateTime.Now; // try the new port right away
+            ShowDisconnected(); // clear the old readings
         }
 
         protected override void OnFormClosed(FormClosedEventArgs e)
         {
             MainTimer.Stop();
+            try
+            {
+                if (boardConnected)
+                {
+                    board.AllOutputsOff(); // leave the heater, cooler, and fan off
+                }
+            }
+            catch (Exception)
+            {
+                // the board may already be unplugged
+            }
             board.Disconnect();
             base.OnFormClosed(e);
         }
@@ -351,11 +505,11 @@ namespace HVACSmartHomeController_Fall26
                         if (line.StartsWith("High=")) HighSetpoint = Hvac.ClampSetpoint(double.Parse(line.Substring(5)));
                         if (line.StartsWith("Low=")) LowSetpoint = Hvac.ClampSetpoint(double.Parse(line.Substring(4)));
                     }
-                    return true;                                 // after the loop, once every line is read
+                    return true; // after the loop, once every line is read
                 }
                 catch
                 {
-                    return false;                                // a damaged file: keep the defaults
+                    return false; // a damaged file: keep the defaults
                 }
             }
 
@@ -392,6 +546,7 @@ namespace HVACSmartHomeController_Fall26
         public static class Hvac
         {
             public const double SetpointStep = 0.5;
+            public const double Hysteresis = 2.0;
 
             public static double AdcToFahrenheit(int adc)
             {
@@ -413,6 +568,10 @@ namespace HVACSmartHomeController_Fall26
             public const int FanInput = 3;
             public const int PressureInput = 4;
             public const int CoolInput = 5;
+            public const int WarningOutput = 1;
+            public const int HeatOutput = 2;
+            public const int CoolOutput = 3;
+            public const int FanOutput = 4;
         }
 
         public class BoardReading
@@ -425,7 +584,7 @@ namespace HVACSmartHomeController_Fall26
         public class QyAtBoard
         {
             SerialPort port = new SerialPort();
-            byte outputs = 0;                  // which digital outputs are on (bit 0 = Output 1)
+            byte outputs = 0; // which digital outputs are on (bit 0 = Output 1)
 
             // set to true if testing shows the outputs are backwards
             public bool OutputsInverted = false;
@@ -468,16 +627,16 @@ namespace HVACSmartHomeController_Fall26
                 try
                 {
                     port.PortName = name;
-                    port.BaudRate = 9600;                 // ignored by USB virtual COM ports
+                    port.BaudRate = 9600; // ignored by USB virtual COM ports
                     port.Open();
                     port.DiscardInBuffer();
-                    port.Write(new byte[] { 0xF0 }, 0, 1);    // read settings
+                    port.Write(new byte[] { 0xF0 }, 0, 1); // read settings
 
                     byte[] settings = ReadBytes(64, 300);
                     if (settings[58] == 81 && settings[59] == 121 && settings[60] == 64)
                     {
                         outputs = 0;
-                        SendOutputs();                    // start with everything off
+                        SendOutputs(); // start with everything off
                         return true;
                     }
                 }
@@ -555,7 +714,7 @@ namespace HVACSmartHomeController_Fall26
                 {
                     throw new InvalidOperationException("Not connected to the QY@ board.");
                 }
-                port.DiscardInBuffer();                   // throw away old bytes so replies line up
+                port.DiscardInBuffer(); // throw away old bytes so replies line up
                 port.Write(data, 0, data.Length);
             }
 
