@@ -1,0 +1,3 @@
+Port=COM5
+High=75.0
+Low=69.0
