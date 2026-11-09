@@ -34,6 +34,7 @@ namespace HVACSmartHomeController_Fall26
             ISUTheme();
         }
 
+        // sets the defaults for the form and loads the last sessions settings
         void SetDefaults()
         {
             // load the last session's port and setpoints
@@ -55,6 +56,7 @@ namespace HVACSmartHomeController_Fall26
             ShowCommStatus("Searching for QY@ board...", false);
         }
 
+        // sets the colors of the form to match the ISU theme
         void ISUTheme()
         {
             BackColor = IsuColors.GrowlGreyLight;
@@ -93,6 +95,7 @@ namespace HVACSmartHomeController_Fall26
                 PortToolStripComboBox.SelectedItem = wanted;
             }
         }
+
         void ShowSetpoints()
         {
             HighSetpointLabel.Text = "Cool to " + HvacSettings.HighSetpoint.ToString("F1") + " °F";
@@ -474,7 +477,8 @@ namespace HVACSmartHomeController_Fall26
         }
 
         // Helper classes****************************************************** 
-
+        // the colors used in the ISU theme, so we don't have to remember the RGB values
+        // the public static class work as a namespace for the colors
         public static class IsuColors
         {
             public static Color GrowlGreyLight = Color.FromArgb(230, 231, 232);
@@ -493,6 +497,7 @@ namespace HVACSmartHomeController_Fall26
 
             const string FileName = "..\\..\\..\\HVAC Settings.txt";
 
+            // load the last session's port and setpoints from a text file
             public static bool Load()
             {
                 try
@@ -513,6 +518,7 @@ namespace HVACSmartHomeController_Fall26
                 }
             }
 
+            // save the current port and setpoints to a text file
             public static bool Save()
             {
                 try
@@ -529,6 +535,7 @@ namespace HVACSmartHomeController_Fall26
             }
         }
 
+        // errors are logged to a text file with the date in the name
         public static class ErrorLog
         {
             public static void Write(string description)
@@ -543,6 +550,7 @@ namespace HVACSmartHomeController_Fall26
             }
         }
 
+        // hvac constants and conversions
         public static class Hvac
         {
             public const double SetpointStep = 0.5;
@@ -561,6 +569,7 @@ namespace HVACSmartHomeController_Fall26
             }
         }
 
+        // iomap for the QY@ board: which input/output is which
         public static class IoMap
         {
             public const int InterlockInput = 1;
@@ -574,6 +583,7 @@ namespace HVACSmartHomeController_Fall26
             public const int FanOutput = 4;
         }
 
+        // board reading two analog inputs and one byte of digital inputs
         public class BoardReading
         {
             public int Analog1;
@@ -581,6 +591,7 @@ namespace HVACSmartHomeController_Fall26
             public byte DigitalInputs;
         }
 
+        // the QY@ board is a USB device that shows up as a virtual COM port
         public class QyAtBoard
         {
             SerialPort port = new SerialPort();
@@ -648,6 +659,7 @@ namespace HVACSmartHomeController_Fall26
                 return false;
             }
 
+            // Closes the port if it is open
             public void Disconnect()
             {
                 try
